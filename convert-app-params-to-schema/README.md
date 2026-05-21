@@ -49,16 +49,26 @@ Each notebook will:
 1. Connect to the VIKTOR REST API with Bearer token authentication without printing the token
 2. Fetch the entity with `GET /api/workspaces/{workspace_id}/entities/{entity_id}/`
 3. Extract parameters from the `properties` field in the response
-4. Convert it to a JSON schema with `additionalProperties: false`
-5. Save the schema to a JSON file
+4. Fetch available controller methods from `entity_type.views` and parametrization actions
+5. Convert saved params to a JSON schema with `additionalProperties: false`
+6. Save the schema and available methods to JSON files
 
 ## Output
 
-Each notebook generates a JSON schema file that can be used for:
+Each notebook generates a JSON schema file and an available-methods file:
+
+- `app1_params_schema.json`
+- `app1_available_methods.json`
+- `app2_params_schema.json`
+- `app2_available_methods.json`
+
+The schema files can be used for:
 - OpenAI Structured Outputs
 - Validation of user inputs
 - Documentation generation
 - Integration with other systems
+
+The available-methods files list callable view/action methods with labels and source metadata.
 
 ## Why REST API instead of SDK?
 
