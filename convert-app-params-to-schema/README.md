@@ -1,6 +1,6 @@
 # Convert VIKTOR App Params to JSON Schema
 
-This folder contains Jupyter notebooks to extract parametrization definitions from VIKTOR apps and convert them to JSON schemas using the **VIKTOR REST API**.
+This folder contains Jupyter notebooks to extract parametrization values from VIKTOR entities and convert them to JSON schemas using the **VIKTOR REST API**.
 
 ## Setup
 
@@ -9,7 +9,7 @@ This folder contains Jupyter notebooks to extract parametrization definitions fr
 Create a `.env` file **in this directory** (`convert-app-params-to-schema/.env`) with your VIKTOR credentials:
 
 ```env
-# VIKTOR Personal Access Token (starts with vktrpat_)
+# VIKTOR Personal Access Token
 # For demo.viktor.ai, get it from: https://demo.viktor.ai/profile/api-tokens
 # For production cloud.viktor.ai, get it from: https://cloud.viktor.ai/profile/api-tokens
 #
@@ -18,11 +18,18 @@ Create a `.env` file **in this directory** (`convert-app-params-to-schema/.env`)
 # - "Authorization:" prefix
 # - Quotes or angle brackets
 # - Spaces or newlines
-VIKTOR_API_TOKEN=vktrpat_your_actual_token_here
+TOKEN_VK_APP=vktrpat_your_actual_token_here
+
+# Backwards-compatible alternatives also accepted:
+# VIKTOR_TOKEN=vktrpat_your_actual_token_here
+# VIKTOR_API_TOKEN=vktrpat_your_actual_token_here
 
 # VIKTOR Environment (defaults to "demo")
 # Options: "demo", "cloud", or full URL like "https://demo.viktor.ai"
 VIKTOR_ENVIRONMENT=demo
+
+# Optional: use a full API base instead of an environment slug
+# VIKTOR_API_BASE=https://demo.viktor.ai/api
 ```
 
 ### 2. Install dependencies
@@ -39,7 +46,7 @@ pip install requests python-dotenv
 - **`app2_reaction_load_params.ipynb`**: Extracts schema from workspace 2673, entity 12163
 
 Each notebook will:
-1. Connect to the VIKTOR REST API with Bearer token authentication
+1. Connect to the VIKTOR REST API with Bearer token authentication without printing the token
 2. Fetch the entity with `GET /api/workspaces/{workspace_id}/entities/{entity_id}/`
 3. Extract parameters from the `properties` field in the response
 4. Convert it to a JSON schema with `additionalProperties: false`
@@ -66,29 +73,28 @@ The REST API provides a stable, documented interface that works consistently acr
 
 ### HTTP 401 Unauthorized - "Unable to parse authentication"
 
-Your token format is incorrect. The notebooks now validate your token and will show clear errors:
+Your token format is incorrect. The notebooks validate your token shape and show clear errors without printing the token.
 
 **Common mistakes:**
-- ❌ `VIKTOR_API_TOKEN=Bearer vktrpat_...` (remove "Bearer ")
-- ❌ `VIKTOR_API_TOKEN="vktrpat_..."` (remove quotes)
-- ❌ `VIKTOR_API_TOKEN=Authorization: Bearer vktrpat_...` (remove everything before the token)
-- ✅ `VIKTOR_API_TOKEN=vktrpat_7a88702c14224cc1972010e4deea8329_...` (correct!)
+- Wrong: `TOKEN_VK_APP=Bearer vktrpat_...` (remove `Bearer `)
+- Wrong: `TOKEN_VK_APP="vktrpat_..."` (remove quotes)
+- Wrong: `TOKEN_VK_APP=Authorization: Bearer vktrpat_...` (remove everything before the token)
+- Correct: `TOKEN_VK_APP=vktrpat_your_actual_token_here`
 
 **Your token must:**
-1. Start with `vktrpat_`
-2. Be a valid Personal Access Token from https://demo.viktor.ai/profile/api-tokens
-3. Have no spaces, quotes, or prefixes
-4. Not be expired
+1. Be a valid Personal Access Token from the matching VIKTOR environment
+2. Have no spaces, quotes, or prefixes
+3. Not be expired
 
 **After fixing `.env`:**
 1. Save the file
-2. **Restart your Jupyter kernel** (Kernel → Restart)
+2. **Restart your Jupyter kernel** (Kernel > Restart)
 3. Run all cells again
 
 The notebook will show:
 ```
-Using VIKTOR PAT: vktrpat_7a88...nnRM
-Authorization header shape: Bearer vktrpat_...
+Using VIKTOR token from environment variable: TOKEN_VK_APP
+REST API base URL: https://demo.viktor.ai/api
 ```
 
 ### HTTP 403 Forbidden

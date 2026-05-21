@@ -1,0 +1,45 @@
+{
+  "type": "object",
+  "properties": {
+    "inputs": {
+      "type": "object",
+      "properties": {
+        "reactions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "p": {
+                "type": "number"
+              },
+              "my": {
+                "type": "number"
+              },
+              "mz": {
+                "type": "number"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "my",
+              "mz",
+              "p"
+            ]
+          }
+        },
+        "pad_thickness": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "reactions",
+        "pad_thickness"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "inputs"
+  ],
+  "additionalProperties": false
+}
