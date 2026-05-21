@@ -23,10 +23,10 @@ class WorkflowGraph {
   setData(canvasState) {
     this.canvasState = canvasState || { workflow: { nodes: [] } };
     this.data = this.canvasState.workflow || { nodes: [] };
-    this._validateAndBuildGraph();
+    this.validateAndBuildGraph();
   }
 
-  _validateAndBuildGraph() {
+  validateAndBuildGraph() {
     const nodes = Array.isArray(this.data.nodes) ? this.data.nodes : [];
     this.byId.clear();
     this.edges = [];
@@ -120,12 +120,12 @@ class WorkflowGraph {
   }
 
   render() {
-    this._renderOverlay();
-    this._renderNodes();
-    this._drawEdges();
+    this.renderOverlay();
+    this.renderNodes();
+    this.drawEdges();
   }
 
-  _renderOverlay() {
+  renderOverlay() {
     if (!this.overlayEl) return;
     const plan = this.canvasState.plan;
     const progress = this.canvasState.progress;
@@ -136,12 +136,12 @@ class WorkflowGraph {
     }
     this.overlayEl.className = "workflow-overlay";
     this.overlayEl.innerHTML = [
-      plan ? this._renderPlan(plan) : "",
-      progress ? this._renderProgress(progress) : "",
+      plan ? this.renderPlan(plan) : "",
+      progress ? this.renderProgress(progress) : "",
     ].join("");
   }
 
-  _renderPlan(plan) {
+  renderPlan(plan) {
     const todos = Array.isArray(plan.todos) ? plan.todos : [];
     const done = todos.filter((todo) => todo.status === "completed").length;
     const percent = todos.length ? Math.round((done / todos.length) * 100) : 0;
@@ -151,26 +151,26 @@ class WorkflowGraph {
         ${plan.description ? `<div class="workflow-card-description">${escapeHtml(plan.description)}</div>` : ""}
         <div class="workflow-progress-bar"><span style="width:${percent}%"></span></div>
         <div class="workflow-list">
-          ${todos.map((todo) => this._renderRow(todo)).join("")}
+          ${todos.map((todo) => this.renderRow(todo)).join("")}
         </div>
       </section>
     `;
   }
 
-  _renderProgress(progress) {
+  renderProgress(progress) {
     const steps = Array.isArray(progress.steps) ? progress.steps : [];
     return `
       <section class="workflow-card">
         <div class="workflow-card-title">${escapeHtml(progress.title || "Execution Progress")}</div>
         ${progress.elapsed_time_ms != null ? `<div class="workflow-card-description">${formatMs(progress.elapsed_time_ms)}</div>` : ""}
         <div class="workflow-list">
-          ${steps.map((step) => this._renderRow(step)).join("")}
+          ${steps.map((step) => this.renderRow(step)).join("")}
         </div>
       </section>
     `;
   }
 
-  _renderRow(item) {
+  renderRow(item) {
     const status = item.status || "pending";
     return `
       <div class="workflow-row">
@@ -183,7 +183,7 @@ class WorkflowGraph {
     `;
   }
 
-  _renderNodes() {
+  renderNodes() {
     const nodes = Array.isArray(this.data.nodes) ? this.data.nodes : [];
     this.nodesHost.innerHTML = "";
     for (const node of nodes) {
@@ -206,7 +206,7 @@ class WorkflowGraph {
     }
   }
 
-  _drawEdges() {
+  drawEdges() {
     this.edgesGroup.innerHTML = "";
     for (const edge of this.edges) {
       const from = this.positions.get(edge.from);

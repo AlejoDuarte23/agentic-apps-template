@@ -14,12 +14,12 @@ from workflow_graph.models import (
 WORKFLOW_GRAPH_STATE_STORAGE_KEY = "workflow_graph_state"
 
 
-def _slugify(value: str) -> str:
+def slugify(value: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
     return slug or "workflow"
 
 
-def _topological_node_order(workflow: Workflow) -> list[Node]:
+def topological_node_order(workflow: Workflow) -> list[Node]:
     by_id = {node.id: node for node in workflow.nodes}
     indegree = {node.id: 0 for node in workflow.nodes}
     outgoing: dict[str, list[str]] = {node.id: [] for node in workflow.nodes}
@@ -44,7 +44,7 @@ def _topological_node_order(workflow: Workflow) -> list[Node]:
     return [by_id[node_id] for node_id in order]
 
 
-def _describe_node(node: Node) -> str | None:
+def describe_node(node: Node) -> str | None:
     if not node.depends_on:
         return "Starting point for this workflow."
     upstream = ", ".join(dependency.node_id for dependency in node.depends_on)
@@ -53,11 +53,11 @@ def _describe_node(node: Node) -> str | None:
 
 def build_default_plan(workflow_name: str, workflow: Workflow) -> WorkflowPlan:
     todos = [
-        PlanTodo(id=node.id, label=node.title, description=_describe_node(node))
-        for node in _topological_node_order(workflow)
+        PlanTodo(id=node.id, label=node.title, description=describe_node(node))
+        for node in topological_node_order(workflow)
     ]
     return WorkflowPlan(
-        id=f"{_slugify(workflow_name)}-plan",
+        id=f"{slugify(workflow_name)}-plan",
         title=f"{workflow_name} Plan",
         description="Agent-managed checklist for the current workflow graph.",
         todos=todos,

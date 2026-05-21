@@ -37,3 +37,5 @@ entity.compute(method_name="get_data_view", params={...})
 ```
 
 For a `DataView`, keep `result_key="data"` so the returned `DataResult` payload is stored in `vkt.Storage` for the next tool.
+
+Tools that accept arbitrary JSON use string fields such as `params_json` and `payload_json`. This keeps the OpenAI Agents SDK tool schemas strict while still allowing flexible VIKTOR params and storage payloads.

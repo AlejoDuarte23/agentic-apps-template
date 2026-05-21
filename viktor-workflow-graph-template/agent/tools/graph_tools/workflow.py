@@ -2,9 +2,8 @@ import json
 from typing import Any, Literal
 
 import viktor as vkt
-from pydantic import Field
+from pydantic import BaseModel, Field
 
-from agent.tools.base import Tool
 from workflow_graph.models import (
     Connection,
     Node,
@@ -18,7 +17,7 @@ from workflow_graph.state import build_canvas_state, load_canvas_state, save_can
 from workflow_graph.viewer import WorkflowViewer
 
 
-class WorkflowNodeInput(Tool):
+class WorkflowNodeInput(BaseModel):
     node_id: str = Field(..., description="Stable unique id for this workflow node.")
     label: str = Field(..., description="Human-readable node label.")
     node_type: str = Field(default="default", description="Visual node type.")
@@ -29,12 +28,12 @@ class WorkflowNodeInput(Tool):
     )
 
 
-class ComposeWorkflowGraphArgs(Tool):
+class ComposeWorkflowGraphArgs(BaseModel):
     workflow_name: str = Field(..., description="Name shown in the graph state.")
     nodes: list[WorkflowNodeInput] = Field(..., description="DAG nodes.")
 
 
-class PlanTodoInput(Tool):
+class PlanTodoInput(BaseModel):
     id: str = Field(..., description="Stable todo id.")
     label: str = Field(..., description="Short todo label.")
     status: Literal["pending", "in_progress", "completed", "failed", "cancelled"] = (
@@ -43,14 +42,14 @@ class PlanTodoInput(Tool):
     description: str | None = None
 
 
-class SetWorkflowPlanArgs(Tool):
+class SetWorkflowPlanArgs(BaseModel):
     title: str = Field(..., description="Plan card title.")
     description: str | None = None
     todos: list[PlanTodoInput] = Field(..., description="Ordered plan items.")
     max_visible_todos: int = Field(default=6, ge=1)
 
 
-class UpdatePlanTodoInput(Tool):
+class UpdatePlanTodoInput(BaseModel):
     id: str = Field(..., description="Existing todo id to update.")
     label: str | None = None
     status: Literal["pending", "in_progress", "completed", "failed", "cancelled"] | None = (
@@ -59,7 +58,7 @@ class UpdatePlanTodoInput(Tool):
     description: str | None = None
 
 
-class UpdateWorkflowPlanArgs(Tool):
+class UpdateWorkflowPlanArgs(BaseModel):
     title: str | None = None
     description: str | None = None
     max_visible_todos: int | None = Field(default=None, ge=1)
@@ -70,25 +69,25 @@ class UpdateWorkflowPlanArgs(Tool):
     )
 
 
-class GetWorkflowPlanArgs(Tool):
+class GetWorkflowPlanArgs(BaseModel):
     pass
 
 
-class ProgressStepInput(Tool):
+class ProgressStepInput(BaseModel):
     id: str
     label: str
     description: str | None = None
     status: Literal["pending", "in_progress", "completed", "failed"] = "pending"
 
 
-class SetWorkflowProgressArgs(Tool):
+class SetWorkflowProgressArgs(BaseModel):
     title: str = "Execution Progress"
     steps: list[ProgressStepInput] = Field(default_factory=list)
     elapsed_time_ms: int | None = Field(default=None, ge=0)
     clear: bool = False
 
 
-def _validate_dag(nodes: list[WorkflowNodeInput]) -> list[tuple[str, str]]:
+def validate_dag(nodes: list[WorkflowNodeInput]) -> list[tuple[str, str]]:
     ids = [node.node_id for node in nodes]
     duplicate_ids = sorted({node_id for node_id in ids if ids.count(node_id) > 1})
     if duplicate_ids:
@@ -126,14 +125,14 @@ def _validate_dag(nodes: list[WorkflowNodeInput]) -> list[tuple[str, str]]:
     return edges
 
 
-def _require_canvas_state():
+def require_canvas_state():
     state = load_canvas_state()
     if state is None:
         raise ValueError("No workflow graph exists. Run compose_workflow_graph first.")
     return state
 
 
-def _missing_plan_response(reason: str) -> str:
+def missing_plan_response(reason: str) -> str:
     return json.dumps(
         {
             "status": "missing_prerequisite",
@@ -144,9 +143,9 @@ def _missing_plan_response(reason: str) -> str:
     )
 
 
-async def compose_workflow_graph_func(_ctx: Any, args: str) -> str:
+async def compose_workflow_graph_func(context: Any, args: str) -> str:
     payload = ComposeWorkflowGraphArgs.model_validate_json(args)
-    edges = _validate_dag(payload.nodes)
+    edges = validate_dag(payload.nodes)
 
     workflow = Workflow(
         nodes=[
@@ -176,13 +175,13 @@ async def compose_workflow_graph_func(_ctx: Any, args: str) -> str:
     )
 
 
-async def get_workflow_plan_func(_ctx: Any, args: str) -> str:
+async def get_workflow_plan_func(context: Any, args: str) -> str:
     json.loads(args or "{}")
     state = load_canvas_state()
     if state is None:
-        return _missing_plan_response("No workflow graph exists yet.")
+        return missing_plan_response("No workflow graph exists yet.")
     if state.plan is None:
-        return _missing_plan_response(
+        return missing_plan_response(
             f"Workflow graph '{state.workflow_name}' exists but has no plan."
         )
     return json.dumps(
@@ -196,9 +195,9 @@ async def get_workflow_plan_func(_ctx: Any, args: str) -> str:
     )
 
 
-async def set_workflow_plan_func(_ctx: Any, args: str) -> str:
+async def set_workflow_plan_func(context: Any, args: str) -> str:
     payload = SetWorkflowPlanArgs.model_validate_json(args)
-    state = _require_canvas_state()
+    state = require_canvas_state()
     state.plan = WorkflowPlan(
         id=state.plan.id if state.plan else "workflow-plan",
         title=payload.title,
@@ -218,9 +217,9 @@ async def set_workflow_plan_func(_ctx: Any, args: str) -> str:
     return f"Workflow plan set with {len(payload.todos)} items."
 
 
-async def update_workflow_plan_func(_ctx: Any, args: str) -> str:
+async def update_workflow_plan_func(context: Any, args: str) -> str:
     payload = UpdateWorkflowPlanArgs.model_validate_json(args)
-    state = _require_canvas_state()
+    state = require_canvas_state()
     if state.plan is None:
         raise ValueError("No workflow plan exists. Run set_workflow_plan first.")
 
@@ -270,9 +269,9 @@ async def update_workflow_plan_func(_ctx: Any, args: str) -> str:
     return f"Workflow plan updated ({updated} modified, {appended} appended)."
 
 
-async def set_workflow_progress_func(_ctx: Any, args: str) -> str:
+async def set_workflow_progress_func(context: Any, args: str) -> str:
     payload = SetWorkflowProgressArgs.model_validate_json(args)
-    state = _require_canvas_state()
+    state = require_canvas_state()
     if payload.clear:
         state.progress = None
         save_canvas_state(state)

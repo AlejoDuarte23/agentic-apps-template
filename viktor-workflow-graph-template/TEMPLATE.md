@@ -70,3 +70,9 @@ result = client.compute(
 )
 data_view_payload = select_compute_result(result, result_key="data")
 ```
+
+```python
+# Agent tool inputs use JSON strings for flexible payloads:
+params_json = '{"input": {"height": 3.2, "width": 1.5}}'
+payload_json = '{"status": "ok", "items": [1, 2, 3]}'
+```

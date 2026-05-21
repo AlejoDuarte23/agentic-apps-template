@@ -62,7 +62,7 @@ def ensure_loop() -> asyncio.AbstractEventLoop:
     return event_loop
 
 
-def _extract_call_id(raw: Any) -> str | None:
+def extract_call_id(raw: Any) -> str | None:
     if isinstance(raw, dict):
         value = raw.get("call_id") or raw.get("id") or raw.get("tool_call_id")
         return str(value) if value else None
@@ -73,7 +73,7 @@ def _extract_call_id(raw: Any) -> str | None:
     return None
 
 
-def _extract_tool_name(raw: Any) -> str:
+def extract_tool_name(raw: Any) -> str:
     if isinstance(raw, dict):
         if raw.get("name"):
             return str(raw["name"])
@@ -92,7 +92,7 @@ def _extract_tool_name(raw: Any) -> str:
     return "tool"
 
 
-def _normalize_stream_text(text: str) -> str:
+def normalize_stream_text(text: str) -> str:
     return " ".join(text.split()).strip()
 
 
@@ -107,7 +107,7 @@ def workflow_agent_sync_stream(
     sentinel = object()
     loop = ensure_loop()
 
-    async def _produce() -> None:
+    async def produce() -> None:
         call_id_to_name: dict[str, str] = {}
         pending_assistant_message: str | None = None
         streamed_text = ""
@@ -140,7 +140,7 @@ def workflow_agent_sync_stream(
                     and getattr(item, "type", None) == "message_output_item"
                 ):
                     text = ItemHelpers.text_message_output(item).strip()
-                    if text and _normalize_stream_text(text) != _normalize_stream_text(
+                    if text and normalize_stream_text(text) != normalize_stream_text(
                         streamed_text
                     ):
                         pending_assistant_message = text
@@ -153,8 +153,8 @@ def workflow_agent_sync_stream(
                     if pending_assistant_message:
                         output_queue.put(f"\n\n{pending_assistant_message}\n\n")
                         pending_assistant_message = None
-                    call_id = _extract_call_id(raw)
-                    tool_name = _extract_tool_name(raw)
+                    call_id = extract_call_id(raw)
+                    tool_name = extract_tool_name(raw)
                     if call_id:
                         call_id_to_name[call_id] = tool_name
                     display_name = TOOL_DISPLAY_NAMES.get(tool_name, tool_name)
@@ -162,7 +162,7 @@ def workflow_agent_sync_stream(
                     continue
 
                 if event.name == "tool_output":
-                    call_id = _extract_call_id(raw)
+                    call_id = extract_call_id(raw)
                     tool_name = call_id_to_name.get(call_id or "", "tool")
                     display_name = TOOL_DISPLAY_NAMES.get(tool_name, tool_name)
                     output_queue.put(f"\n> Done **{display_name}**\n\n")
@@ -175,9 +175,9 @@ def workflow_agent_sync_stream(
                 output_queue.put(f"\n\n{pending_assistant_message}\n\n")
             output_queue.put(sentinel)
 
-    asyncio.run_coroutine_threadsafe(_produce(), loop)
+    asyncio.run_coroutine_threadsafe(produce(), loop)
 
-    def _generator() -> Iterator[str]:
+    def stream_generator() -> Iterator[str]:
         while True:
             item = output_queue.get()
             if item is sentinel:
@@ -186,4 +186,4 @@ def workflow_agent_sync_stream(
         if on_done:
             on_done()
 
-    return _generator()
+    return stream_generator()

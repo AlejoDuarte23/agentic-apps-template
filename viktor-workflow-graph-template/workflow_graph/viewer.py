@@ -6,9 +6,9 @@ from typing import Any
 
 class WorkflowViewer:
     def __init__(self, workflow_factory: Callable[[], Any]) -> None:
-        self._workflow_factory = workflow_factory
+        self.workflow_factory = workflow_factory
 
-    def _model_dump(self, value: Any) -> dict[str, Any]:
+    def model_dump_value(self, value: Any) -> dict[str, Any]:
         if hasattr(value, "model_dump"):
             return value.model_dump()
         if hasattr(value, "dict"):
@@ -19,8 +19,8 @@ class WorkflowViewer:
         module_dir = Path(__file__).resolve().parent
         css = (module_dir / "styles.css").read_text(encoding="utf-8")
         js = (module_dir / "workflow.js").read_text(encoding="utf-8")
-        state = self._workflow_factory()
-        state_json = json.dumps(self._model_dump(state), ensure_ascii=False).replace(
+        state = self.workflow_factory()
+        state_json = json.dumps(self.model_dump_value(state), ensure_ascii=False).replace(
             "</",
             "<\\/",
         )

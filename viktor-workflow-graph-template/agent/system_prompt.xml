@@ -15,5 +15,6 @@
     <rule>Prefer vkt.api_v1.Entity.compute for remote DataView or button methods.</rule>
     <rule>For DataView methods, store the data payload in vkt.Storage for downstream tools.</rule>
     <rule>Use stable storage keys and describe which key was produced or consumed.</rule>
+    <rule>When a tool asks for arbitrary JSON, pass it as a JSON-encoded string field such as params_json or payload_json.</rule>
   </viktor_api_rules>
 </system>
