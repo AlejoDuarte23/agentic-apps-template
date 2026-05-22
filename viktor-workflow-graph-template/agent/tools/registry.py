@@ -15,12 +15,10 @@ from agent.tools.graph_tools import (
     update_workflow_plan_func,
 )
 from agent.tools.viktor_tools import (
-    CallRemoteViktorAppArgs,
-    StorageReadArgs,
-    StorageWriteArgs,
-    call_remote_viktor_app_func,
-    read_storage_json_func,
-    write_storage_json_func,
+    FootingDesignParams,
+    ReactionLoadsParams,
+    run_footing_design_func,
+    run_reaction_loads_func,
 )
 
 
@@ -30,9 +28,8 @@ TOOL_DISPLAY_NAMES = {
     "set_workflow_plan": "Set Workflow Plan",
     "update_workflow_plan": "Update Workflow Plan",
     "set_workflow_progress": "Set Workflow Progress",
-    "write_storage_json": "Write Storage JSON",
-    "read_storage_json": "Read Storage JSON",
-    "call_remote_viktor_app": "Call Remote VIKTOR App",
+    "run_reaction_loads": "Run Reaction Loads",
+    "run_footing_design": "Run Footing Design",
 }
 
 
@@ -80,24 +77,22 @@ def get_tools() -> list[Any]:
             set_workflow_progress_func,
         ),
         function_tool(
-            "write_storage_json",
-            "Write a JSON payload into entity-scoped vkt.Storage.",
-            StorageWriteArgs,
-            write_storage_json_func,
-        ),
-        function_tool(
-            "read_storage_json",
-            "Read JSON from entity-scoped vkt.Storage.",
-            StorageReadArgs,
-            read_storage_json_func,
-        ),
-        function_tool(
-            "call_remote_viktor_app",
+            "run_reaction_loads",
             (
-                "Call a VIKTOR entity method with vkt.api_v1.Entity.compute and store the selected "
-                "result payload. For DataView methods, keep result_key='data'."
+                "Run the demo VIKTOR reaction-load app through the SDK API. "
+                "Defaults come from the app parametrization."
             ),
-            CallRemoteViktorAppArgs,
-            call_remote_viktor_app_func,
+            ReactionLoadsParams,
+            run_reaction_loads_func,
+        ),
+        function_tool(
+            "run_footing_design",
+            (
+                "Run the demo VIKTOR footing app through the SDK API. Reads reactions from "
+                "entity-scoped VIKTOR Storage key 'reaction_loads_table'; only pad_thickness "
+                "is exposed as a tool input."
+            ),
+            FootingDesignParams,
+            run_footing_design_func,
         ),
     ]

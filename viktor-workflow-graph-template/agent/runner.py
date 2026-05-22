@@ -21,12 +21,12 @@ event_loop: asyncio.AbstractEventLoop | None = None
 event_loop_thread: threading.Thread | None = None
 
 
-openai_client = AsyncOpenAI(
+viktor_llm_client = AsyncOpenAI(
     base_url=vkt.ViktorOpenAI.get_base_url(version="v1"),
     api_key=vkt.ViktorOpenAI.get_api_key(),
 )
 
-set_default_openai_client(openai_client, use_for_tracing=False)
+set_default_openai_client(viktor_llm_client, use_for_tracing=False)
 set_tracing_disabled(True)
 
 @dataclass

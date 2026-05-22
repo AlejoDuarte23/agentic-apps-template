@@ -37,42 +37,18 @@ class Controller(vkt.Controller):
   <role>You help users run VIKTOR-backed engineering workflows.</role>
   <workflow_rules>
     <rule>Create the graph first with compose_workflow_graph when no graph exists.</rule>
-    <rule>Use storage-backed handoffs instead of asking the user to copy JSON.</rule>
+    <rule>Use run_reaction_loads when the user asks for reaction-load results.</rule>
+    <rule>Use run_footing_design after run_reaction_loads when the user asks for footing dimensions.</rule>
   </workflow_rules>
+  <storage_rules>
+    <rule>Use vkt.Storage with scope="entity" for handoffs.</rule>
+  </storage_rules>
 </system>
 ```
 
 ```python
-vkt.Storage().set(
-    "tool_output_key",
-    data=vkt.File.from_data(json.dumps(payload, indent=2)),
-    scope="entity",
-)
+payload = ReactionLoadsParams(inputs=ReactionLoadsInputs())
+result = await run_reaction_loads_func(context, payload.model_dump_json())
 
-stored_file = vkt.Storage().get("tool_output_key", scope="entity")
-payload = json.loads(stored_file.getvalue_binary().decode("utf-8"))
-```
-
-```python
-api = vkt.api_v1.API(token=os.environ["TOKEN_VK_APP"])
-entity = api.get_entity(entity_id, workspace_id=workspace_id)
-result = entity.compute(method_name="get_data_view", params=params)
-data_view_payload = result["data"]
-```
-
-```python
-client = ViktorComputeClient()
-result = client.compute(
-    entity_id=entity_id,
-    workspace_id=workspace_id,
-    method_name="get_data_view",
-    params=params,
-)
-data_view_payload = select_compute_result(result, result_key="data")
-```
-
-```python
-# Agent tool inputs use JSON strings for flexible payloads:
-params_json = '{"input": {"height": 3.2, "width": 1.5}}'
-payload_json = '{"status": "ok", "items": [1, 2, 3]}'
+footing_result = await run_footing_design_func(context, '{"pad_thickness": 0.6}')
 ```

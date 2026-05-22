@@ -48,27 +48,43 @@ pip install requests python-dotenv
 Each notebook will:
 1. Connect to the VIKTOR REST API with Bearer token authentication without printing the token
 2. Fetch the entity with `GET /api/workspaces/{workspace_id}/entities/{entity_id}/`
-3. Extract parameters from the `properties` field in the response
-4. Fetch available controller methods from `entity_type.views` and parametrization actions
-5. Convert saved params to a JSON schema with `additionalProperties: false`
-6. Save the schema and available methods to JSON files
+3. Extract saved parameters from the `properties` field in the response
+4. Fetch the declared parametrization with `params: {}` to read field defaults
+5. Merge declared defaults with saved parameters, where saved parameters win
+6. Fetch available controller methods from `entity_type.views` and parametrization actions
+7. Execute the first available DataView/TableView-style method through REST jobs
+8. Select the first result payload from `data`, `table`, `download`, `geometry`, `plotly`, `geojson`, `web`, `pdf`, `image`, `ifc`, `optimization`, or `set_params`
+9. Convert effective params to a JSON schema with `default` values and `additionalProperties: false`
+10. Save the schema, available methods, and first method result to JSON files
 
 ## Output
 
-Each notebook generates a JSON schema file and an available-methods file:
+Each notebook generates one folder per VIKTOR app:
 
-- `app1_params_schema.json`
-- `app1_available_methods.json`
-- `app2_params_schema.json`
-- `app2_available_methods.json`
+- `app1/input_schema.json`
+- `app1/available_methods.json`
+- `app1/first_method_result.json`
+- `app2/input_schema.json`
+- `app2/available_methods.json`
+- `app2/first_method_result.json`
 
 The schema files can be used for:
 - OpenAI Structured Outputs
 - Validation of user inputs
 - Documentation generation
 - Integration with other systems
+- Generated Pydantic models with defaults for Agents SDK tools
 
 The available-methods files list callable view/action methods with labels and source metadata.
+The first-method result files capture the default result shape for the first callable data/table view, which is useful when generating an Agents SDK tool that stores the selected payload in `vkt.Storage`.
+
+The notebooks execute the method with:
+
+```http
+POST /api/workspaces/{workspace_id}/entities/{entity_id}/jobs/
+```
+
+using a body with `method_name`, `params`, and `poll_result: false`, then poll the returned `url` until `status == "success"`.
 
 ## Why REST API instead of SDK?
 
