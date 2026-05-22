@@ -39,6 +39,14 @@ Use one canonical environment value in `.env`: the VIKTOR host only. Good exampl
 
 ## Generated Tools
 
+Generated tools start from the notebook output in `convert-app-params-to-schema/<app>/`:
+
+- `input_schema.json`: Pydantic tool input model and defaults.
+- `available_methods.json`: methods the user can choose to implement.
+- `first_method_result.json`: default output shape used to pick `data`, `table`, or another result key and design the summary/storage handoff.
+
+Use the repo-root `SKILL.md` or `Claude.md` when adding another tool. The implemented files in `agent/tools/viktor_tools/` are the reference style.
+
 `run_reaction_loads` uses a Pydantic model generated from the demo app parametrization:
 
 ```python

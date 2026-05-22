@@ -18,15 +18,14 @@ Create a `.env` file **in this directory** (`convert-app-params-to-schema/.env`)
 # - "Authorization:" prefix
 # - Quotes or angle brackets
 # - Spaces or newlines
-TOKEN_VK_APP=vktrpat_your_actual_token_here
+TOKEN_VK_APP=vktrpat_your_viktor_token
 
 # Backwards-compatible alternatives also accepted:
-# VIKTOR_TOKEN=vktrpat_your_actual_token_here
-# VIKTOR_API_TOKEN=vktrpat_your_actual_token_here
+# VIKTOR_TOKEN=vktrpat_your_viktor_token
+# VIKTOR_API_TOKEN=vktrpat_your_viktor_token
 
-# VIKTOR Environment (defaults to "demo")
-# Options: "demo", "cloud", or full URL like "https://demo.viktor.ai"
-VIKTOR_ENVIRONMENT=demo
+# VIKTOR environment host only. Do not include https:// or /api.
+VIKTOR_ENVIRONMENT=demo.viktor.ai
 
 # Optional: use a full API base instead of an environment slug
 # VIKTOR_API_BASE=https://demo.viktor.ai/api
@@ -56,6 +55,10 @@ Each notebook will:
 8. Select the first result payload from `data`, `table`, `download`, `geometry`, `plotly`, `geojson`, `web`, `pdf`, `image`, `ifc`, `optimization`, or `set_params`
 9. Convert effective params to a JSON schema with `default` values and `additionalProperties: false`
 10. Save the schema, available methods, and first method result to JSON files
+
+Use those JSON files as the handoff into tool generation. The implemented tools in
+`viktor-workflow-graph-template/agent/tools/viktor_tools/` show the target shape,
+and the repo-root `SKILL.md` contains the step-by-step conversion rules.
 
 ## Output
 
@@ -105,7 +108,7 @@ Your token format is incorrect. The notebooks validate your token shape and show
 - Wrong: `TOKEN_VK_APP=Bearer vktrpat_...` (remove `Bearer `)
 - Wrong: `TOKEN_VK_APP="vktrpat_..."` (remove quotes)
 - Wrong: `TOKEN_VK_APP=Authorization: Bearer vktrpat_...` (remove everything before the token)
-- Correct: `TOKEN_VK_APP=vktrpat_your_actual_token_here`
+- Correct: `TOKEN_VK_APP=vktrpat_your_viktor_token`
 
 **Your token must:**
 1. Be a valid Personal Access Token from the matching VIKTOR environment
@@ -134,7 +137,7 @@ Your token doesn't have permission to access the workspace/entity:
 
 The workspace or entity doesn't exist:
 - Verify the workspace ID and entity ID are correct
-- Check the VIKTOR_ENVIRONMENT in your `.env` file matches the instance where the entity exists
+- Check the `VIKTOR_ENVIRONMENT` host in your `.env` file matches the instance where the entity exists, for example `demo.viktor.ai`
 
 ### No parameters found
 
