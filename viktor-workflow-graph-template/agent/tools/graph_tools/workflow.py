@@ -21,6 +21,14 @@ class WorkflowNodeInput(BaseModel):
     node_id: str = Field(..., description="Stable unique id for this workflow node.")
     label: str = Field(..., description="Human-readable node label.")
     node_type: str = Field(default="default", description="Visual node type.")
+    icon: str | None = Field(
+        default=None,
+        description="Optional short icon label rendered in the node icon, for example R or F.",
+    )
+    icon_bg: str | None = Field(
+        default=None,
+        description="Optional CSS color for the node icon background.",
+    )
     url: str | None = Field(default=None, description="Optional URL opened on click.")
     depends_on: list[str] = Field(
         default_factory=list,
@@ -156,6 +164,8 @@ async def compose_workflow_graph_func(context: Any, args: str) -> str:
                     id=node.node_id,
                     title=node.label,
                     type=node.node_type,
+                    icon=node.icon,
+                    icon_bg=node.icon_bg,
                     url=node.url,
                     depends_on=[Connection(node_id=dep) for dep in node.depends_on],
                 )

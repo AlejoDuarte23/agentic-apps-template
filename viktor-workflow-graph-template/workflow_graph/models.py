@@ -20,6 +20,8 @@ class Node(BaseModel):
     id: str
     title: str
     type: str = "default"
+    icon: str | None = None
+    icon_bg: str | None = None
     url: str | None = None
     depends_on: list[Connection] = Field(default_factory=list)
 

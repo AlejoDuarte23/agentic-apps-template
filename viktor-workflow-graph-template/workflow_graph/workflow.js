@@ -674,6 +674,18 @@ export class WorkflowGraph {
     return padding;
   }
 
+  _styleForNode(node) {
+    const style = this.typeStyles[node.type] || this.typeStyles.default;
+    if (!node.icon) return style;
+
+    return {
+      ...style,
+      bg: node.icon_bg || style.bg,
+      iconClassName: [style.iconClassName || "", "icon-custom"].filter(Boolean).join(" "),
+      icon: `<span class="icon-label">${escapeHtml(String(node.icon).slice(0, 3))}</span>`,
+    };
+  }
+
   _renderNodes() {
     this.nodesHost.innerHTML = "";
     const nodes = Array.isArray(this.data.nodes) ? this.data.nodes : [];
@@ -682,7 +694,7 @@ export class WorkflowGraph {
       const pos = this.positions.get(n.id);
       if (!pos) continue;
 
-      const style = this.typeStyles[n.type] || this.typeStyles.default;
+      const style = this._styleForNode(n);
 
       const el = document.createElement("div");
       el.className = style.isOutput ? "node output-node" : "node";
