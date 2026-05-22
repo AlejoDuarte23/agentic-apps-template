@@ -45,17 +45,76 @@ def write_json_to_storage(key: str, payload: Any) -> None:
     )
 
 
+def normalize_header(header: Any) -> str:
+    title = header.get("title") if isinstance(header, dict) else header
+    return str(title or "").split("[", 1)[0].strip().lower()
+
+
+def get_cell_value(cell: Any) -> Any:
+    if isinstance(cell, dict) and "value" in cell:
+        return cell["value"]
+    return cell
+
+
 def summarize_table(table: dict[str, Any]) -> dict[str, Any]:
     column_headers = table.get("column_headers") or []
     data = table.get("data") or []
-    return {
+    columns = [
+        header.get("title") if isinstance(header, dict) else str(header)
+        for header in column_headers
+        if header
+    ]
+    summary: dict[str, Any] = {
         "row_count": len(data),
-        "columns": [
-            header.get("title")
-            for header in column_headers
-            if isinstance(header, dict) and header.get("title")
-        ],
+        "columns": columns,
     }
+
+    normalized_headers = [normalize_header(header) for header in column_headers]
+    if "p" not in normalized_headers or not isinstance(data, list):
+        return summary
+
+    p_index = normalized_headers.index("p")
+    reaction_index = (
+        normalized_headers.index("reaction")
+        if "reaction" in normalized_headers
+        else None
+    )
+    p_values: list[tuple[int, str, float]] = []
+    for row_index, row in enumerate(data, start=1):
+        if not isinstance(row, list) or p_index >= len(row):
+            continue
+        try:
+            p_value = float(get_cell_value(row[p_index]))
+        except (TypeError, ValueError):
+            continue
+
+        reaction_label = f"Row {row_index}"
+        if reaction_index is not None and reaction_index < len(row):
+            reaction_label = str(get_cell_value(row[reaction_index]) or reaction_label)
+        p_values.append((row_index, reaction_label, p_value))
+
+    if not p_values:
+        return summary
+
+    min_p = min(p_values, key=lambda item: item[2])
+    max_p = max(p_values, key=lambda item: item[2])
+    summary.update(
+        min_p_kN=round(min_p[2], 2),
+        max_p_kN=round(max_p[2], 2),
+        critical_reaction=max_p[1],
+    )
+    return summary
+
+
+def summarize_response(summary: dict[str, Any]) -> str:
+    row_count = summary.get("row_count", 0)
+    if {"min_p_kN", "max_p_kN", "critical_reaction"} <= summary.keys():
+        return (
+            f"Generated {row_count} reactions. "
+            f"P ranges {summary['min_p_kN']} to {summary['max_p_kN']} kN; "
+            f"critical: {summary['critical_reaction']}."
+        )
+    return f"Generated {row_count} reactions."
 
 
 async def run_reaction_loads_func(context: Any, args: str) -> str:
@@ -100,10 +159,12 @@ async def run_reaction_loads_func(context: Any, args: str) -> str:
             error=exc,
         )
 
+    summary = summarize_table(table)
     return tool_response(
         "completed",
+        message=summarize_response(summary),
         method_name=REACTION_LOADS_METHOD_NAME,
         result_key=REACTION_LOADS_RESULT_KEY,
         storage_key=REACTION_LOADS_STORAGE_KEY,
-        summary=summarize_table(table),
+        summary=summary,
     )
