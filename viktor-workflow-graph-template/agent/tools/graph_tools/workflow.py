@@ -132,164 +132,185 @@ def require_canvas_state():
     return state
 
 
-def missing_plan_response(reason: str) -> str:
-    return json.dumps(
-        {
-            "status": "missing_prerequisite",
-            "reason": reason,
-            "next_steps": ["compose_workflow_graph", "set_workflow_plan"],
-        },
-        indent=2,
+def tool_response(status: str, **payload: Any) -> str:
+    return json.dumps({"status": status, **payload}, indent=2)
+
+
+def tool_error_response(tool: str, error: Exception) -> str:
+    return tool_response(
+        "error",
+        tool=tool,
+        error_type=type(error).__name__,
+        message=str(error),
     )
 
 
 async def compose_workflow_graph_func(context: Any, args: str) -> str:
-    payload = ComposeWorkflowGraphArgs.model_validate_json(args)
-    edges = validate_dag(payload.nodes)
+    try:
+        payload = ComposeWorkflowGraphArgs.model_validate_json(args or "{}")
+        edges = validate_dag(payload.nodes)
 
-    workflow = Workflow(
-        nodes=[
-            Node(
-                id=node.node_id,
-                title=node.label,
-                type=node.node_type,
-                url=node.url,
-                depends_on=[Connection(node_id=dep) for dep in node.depends_on],
-            )
-            for node in payload.nodes
-        ]
-    )
-    state = build_canvas_state(payload.workflow_name, workflow)
-    viewer = WorkflowViewer(lambda: state)
-    save_canvas_state(state)
-    vkt.Storage().set(
-        "workflow_html",
-        data=vkt.File.from_data(
-            json.dumps({"workflow_name": payload.workflow_name, "html": viewer.write()})
-        ),
-        scope="entity",
-    )
-    return (
-        f"Workflow '{payload.workflow_name}' created with "
-        f"{len(payload.nodes)} nodes and {len(edges)} dependencies."
-    )
+        workflow = Workflow(
+            nodes=[
+                Node(
+                    id=node.node_id,
+                    title=node.label,
+                    type=node.node_type,
+                    url=node.url,
+                    depends_on=[Connection(node_id=dep) for dep in node.depends_on],
+                )
+                for node in payload.nodes
+            ]
+        )
+        state = build_canvas_state(payload.workflow_name, workflow)
+        viewer = WorkflowViewer(lambda: state)
+        save_canvas_state(state)
+        vkt.Storage().set(
+            "workflow_html",
+            data=vkt.File.from_data(
+                json.dumps({"workflow_name": payload.workflow_name, "html": viewer.write()})
+            ),
+            scope="entity",
+        )
+
+        return tool_response(
+            "completed",
+            workflow_name=payload.workflow_name,
+            node_count=len(payload.nodes),
+            dependency_count=len(edges),
+            storage_key="workflow_html",
+        )
+    except Exception as exc:
+        return tool_error_response("compose_workflow_graph", exc)
 
 
 async def get_workflow_plan_func(context: Any, args: str) -> str:
-    json.loads(args or "{}")
-    state = load_canvas_state()
-    if state is None:
-        return missing_plan_response("No workflow graph exists yet.")
-    if state.plan is None:
-        return missing_plan_response(
-            f"Workflow graph '{state.workflow_name}' exists but has no plan."
+    try:
+        GetWorkflowPlanArgs.model_validate_json(args or "{}")
+        state = load_canvas_state()
+        if state is None:
+            raise ValueError("No workflow graph exists. Run compose_workflow_graph first.")
+        if state.plan is None:
+            raise ValueError("No workflow plan exists. Run set_workflow_plan first.")
+
+        return tool_response(
+            "completed",
+            workflow_name=state.workflow_name,
+            title=state.plan.title,
+            description=state.plan.description,
+            todos=[todo.model_dump() for todo in state.plan.todos],
         )
-    return json.dumps(
-        {
-            "workflow_name": state.workflow_name,
-            "title": state.plan.title,
-            "description": state.plan.description,
-            "todos": [todo.model_dump() for todo in state.plan.todos],
-        },
-        indent=2,
-    )
+    except Exception as exc:
+        return tool_error_response("get_workflow_plan", exc)
 
 
 async def set_workflow_plan_func(context: Any, args: str) -> str:
-    payload = SetWorkflowPlanArgs.model_validate_json(args)
-    state = require_canvas_state()
-    state.plan = WorkflowPlan(
-        id=state.plan.id if state.plan else "workflow-plan",
-        title=payload.title,
-        description=payload.description,
-        todos=[
-            PlanTodo(
-                id=todo.id,
-                label=todo.label,
-                status=todo.status,
-                description=todo.description,
-            )
-            for todo in payload.todos
-        ],
-        max_visible_todos=payload.max_visible_todos,
-    )
-    save_canvas_state(state)
-    return f"Workflow plan set with {len(payload.todos)} items."
+    try:
+        payload = SetWorkflowPlanArgs.model_validate_json(args or "{}")
+        state = require_canvas_state()
+
+        state.plan = WorkflowPlan(
+            id=state.plan.id if state.plan else "workflow-plan",
+            title=payload.title,
+            description=payload.description,
+            todos=[
+                PlanTodo(
+                    id=todo.id,
+                    label=todo.label,
+                    status=todo.status,
+                    description=todo.description,
+                )
+                for todo in payload.todos
+            ],
+            max_visible_todos=payload.max_visible_todos,
+        )
+        save_canvas_state(state)
+        return tool_response("completed", todo_count=len(payload.todos))
+    except Exception as exc:
+        return tool_error_response("set_workflow_plan", exc)
 
 
 async def update_workflow_plan_func(context: Any, args: str) -> str:
-    payload = UpdateWorkflowPlanArgs.model_validate_json(args)
-    state = require_canvas_state()
-    if state.plan is None:
-        raise ValueError("No workflow plan exists. Run set_workflow_plan first.")
+    try:
+        payload = UpdateWorkflowPlanArgs.model_validate_json(args or "{}")
+        state = require_canvas_state()
 
-    todos_by_id = {todo.id: todo for todo in state.plan.todos}
-    missing: list[str] = []
-    updated = 0
-    appended = 0
+        if state.plan is None:
+            raise ValueError("No workflow plan exists. Run set_workflow_plan first.")
 
-    for update in payload.todos:
-        todo = todos_by_id.get(update.id)
-        if todo is None:
-            if not payload.append_missing:
-                missing.append(update.id)
+        todos_by_id = {todo.id: todo for todo in state.plan.todos}
+        missing: list[str] = []
+        updated = 0
+        appended = 0
+
+        for update in payload.todos:
+            todo = todos_by_id.get(update.id)
+            if todo is None:
+                if not payload.append_missing:
+                    missing.append(update.id)
+                    continue
+                if not update.label:
+                    raise ValueError(f"New todo '{update.id}' requires a label.")
+                todo = PlanTodo(
+                    id=update.id,
+                    label=update.label,
+                    status=update.status or "pending",
+                    description=update.description,
+                )
+                state.plan.todos.append(todo)
+                todos_by_id[todo.id] = todo
+                appended += 1
                 continue
-            if not update.label:
-                raise ValueError(f"New todo '{update.id}' requires a label.")
-            todo = PlanTodo(
-                id=update.id,
-                label=update.label,
-                status=update.status or "pending",
-                description=update.description,
-            )
-            state.plan.todos.append(todo)
-            todos_by_id[todo.id] = todo
-            appended += 1
-            continue
 
-        if update.label is not None:
-            todo.label = update.label
-        if update.status is not None:
-            todo.status = update.status
-        if update.description is not None:
-            todo.description = update.description
-        updated += 1
+            if update.label is not None:
+                todo.label = update.label
+            if update.status is not None:
+                todo.status = update.status
+            if update.description is not None:
+                todo.description = update.description
+            updated += 1
 
-    if missing:
-        raise ValueError(f"Unknown todo id(s): {', '.join(missing)}")
+        if missing:
+            raise ValueError(f"Unknown todo id(s): {', '.join(missing)}")
 
-    if payload.title is not None:
-        state.plan.title = payload.title
-    if payload.description is not None:
-        state.plan.description = payload.description
-    if payload.max_visible_todos is not None:
-        state.plan.max_visible_todos = payload.max_visible_todos
+        if payload.title is not None:
+            state.plan.title = payload.title
+        if payload.description is not None:
+            state.plan.description = payload.description
+        if payload.max_visible_todos is not None:
+            state.plan.max_visible_todos = payload.max_visible_todos
 
-    save_canvas_state(state)
-    return f"Workflow plan updated ({updated} modified, {appended} appended)."
+        save_canvas_state(state)
+        return tool_response("completed", updated=updated, appended=appended)
+    except Exception as exc:
+        return tool_error_response("update_workflow_plan", exc)
 
 
 async def set_workflow_progress_func(context: Any, args: str) -> str:
-    payload = SetWorkflowProgressArgs.model_validate_json(args)
-    state = require_canvas_state()
-    if payload.clear:
-        state.progress = None
-        save_canvas_state(state)
-        return "Workflow progress cleared."
+    try:
+        payload = SetWorkflowProgressArgs.model_validate_json(args or "{}")
+        state = require_canvas_state()
 
-    state.progress = WorkflowProgress(
-        id=state.progress.id if state.progress else "workflow-progress",
-        title=payload.title,
-        steps=[
-            ProgressStep(
-                id=step.id,
-                label=step.label,
-                description=step.description,
-                status=step.status,
-            )
-            for step in payload.steps
-        ],
-        elapsed_time_ms=payload.elapsed_time_ms,
-    )
-    save_canvas_state(state)
-    return f"Workflow progress updated with {len(payload.steps)} steps."
+        if payload.clear:
+            state.progress = None
+            save_canvas_state(state)
+            return tool_response("completed", cleared=True)
+
+        state.progress = WorkflowProgress(
+            id=state.progress.id if state.progress else "workflow-progress",
+            title=payload.title,
+            steps=[
+                ProgressStep(
+                    id=step.id,
+                    label=step.label,
+                    description=step.description,
+                    status=step.status,
+                )
+                for step in payload.steps
+            ],
+            elapsed_time_ms=payload.elapsed_time_ms,
+        )
+        save_canvas_state(state)
+        return tool_response("completed", step_count=len(payload.steps))
+    except Exception as exc:
+        return tool_error_response("set_workflow_progress", exc)

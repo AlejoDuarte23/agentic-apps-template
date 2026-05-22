@@ -52,6 +52,8 @@ The source artifacts for this shape are generated under `convert-app-params-to-s
 
 `run_footing_design` calls the footing app at `https://demo.viktor.ai/workspaces/2673/app/editor/12163`. It exposes only `pad_thickness` in the tool signature, reads `P`, `My`, and `Mz` from `reaction_loads_table`, sends those reactions to the footing app, selects the `data` result, and stores it at `footing_design_data`.
 
+Expected validation and prerequisite failures are returned as JSON tool output instead of hard exceptions. For example, if `reaction_loads_table` is missing, `run_footing_design` returns `status="needs_prerequisite"` with `retry_action.tool="run_reaction_loads"` so the agent can recover and retry.
+
 Storage handoffs use entity scope:
 
 ```python

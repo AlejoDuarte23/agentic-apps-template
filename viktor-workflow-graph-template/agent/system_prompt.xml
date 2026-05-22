@@ -17,6 +17,12 @@
     <rule>Use run_reaction_loads when the user asks for reaction-load results from the demo app.</rule>
     <rule>Use run_footing_design after run_reaction_loads when the user asks for footing dimensions or bearing/kern checks.</rule>
   </workflow_rules>
+  <retry_rules>
+    <rule>Tool outputs are JSON objects with a status field.</rule>
+    <rule>If status is error, read the message, correct the tool call when obvious, and retry once.</rule>
+    <rule>If a tool output names a retry_action.tool, call that prerequisite tool, then retry the original tool once.</rule>
+    <rule>If a retry also fails, stop and report the failing tool name, error_type, message, and next recoverable action.</rule>
+  </retry_rules>
   <viktor_api_rules>
     <rule>Use generated SDK-backed tools when a typed tool exists for the target app.</rule>
     <rule>The tools use vkt.api_v1.API(token=...).get_workspace(...).get_entity(...).compute(...).</rule>

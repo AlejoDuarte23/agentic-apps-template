@@ -56,7 +56,8 @@ Make sure `viktor.config.toml` contains the same `registered_name`.
 8. Register only generated tools that are currently implemented.
 9. Use `vkt.api_v1.API(token=...).get_workspace(...).get_entity(...).compute(...)` for generated tools that call external VIKTOR app methods.
 10. Use `vkt.Storage(..., scope="entity")` for tool handoffs; producer tools write stable keys and consumer tools read them internally instead of exposing generated data in the tool signature.
-11. Stream tool calls into chat by consuming `result.stream_events()` and rendering `tool_called` and `tool_output` events.
+11. Return expected validation or missing-prerequisite failures as JSON tool output with `status`, `message`, and optional `retry_action`; do not raise for recoverable workflow issues.
+12. Stream tool calls into chat by consuming `result.stream_events()` and rendering `tool_called` and `tool_output` events.
 
 ## Files
 

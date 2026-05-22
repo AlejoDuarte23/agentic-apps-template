@@ -2,9 +2,15 @@ import json
 from typing import Any
 
 import viktor as vkt
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from agent.tools.viktor_tools.reaction_loads import REACTION_LOADS_STORAGE_KEY
+from agent.tools.viktor_tools.responses import (
+    execution_error_response,
+    needs_prerequisite_response,
+    tool_response,
+    validation_error_response,
+)
 from agent.tools.viktor_tools.sdk_compute import ViktorSdkComputeClient, select_result_key
 
 
@@ -48,6 +54,8 @@ class FootingDesignParams(BaseModel):
 
 def read_json_from_storage(key: str) -> Any:
     stored_file = vkt.Storage().get(key, scope="entity")
+    if not stored_file:
+        raise FileNotFoundError(f"Missing VIKTOR Storage key '{key}'.")
     return json.loads(stored_file.getvalue_binary().decode("utf-8"))
 
 
@@ -170,21 +178,57 @@ def summarize_footing_data(data: Any) -> dict[str, Any]:
 
 
 async def run_footing_design_func(context: Any, args: str) -> str:
-    payload = FootingDesignParams.model_validate_json(args or "{}")
+    try:
+        payload = FootingDesignParams.model_validate_json(args or "{}")
+    except ValidationError as exc:
+        return validation_error_response(
+            tool="run_footing_design",
+            message="Invalid footing-design tool arguments.",
+            error=exc,
+            retry_tool="run_footing_design",
+            retry_reason="Retry with pad_thickness as a positive number in meters.",
+        )
 
     try:
         reaction_table = read_json_from_storage(REACTION_LOADS_STORAGE_KEY)
         if not isinstance(reaction_table, dict):
             raise ValueError(
                 f"Storage key '{REACTION_LOADS_STORAGE_KEY}' must contain a table object."
-            )
+        )
         reactions = reactions_from_table(reaction_table)
     except FileNotFoundError as exc:
-        raise ValueError(
-            "Missing reaction-load table in VIKTOR Storage. "
-            "Run run_reaction_loads first so it writes entity-scoped key "
-            f"'{REACTION_LOADS_STORAGE_KEY}'."
-        ) from exc
+        return needs_prerequisite_response(
+            tool="run_footing_design",
+            message=(
+                "Missing reaction-load table in VIKTOR Storage. "
+                "Run run_reaction_loads first so it writes the required entity-scoped key."
+            ),
+            missing_storage_key=REACTION_LOADS_STORAGE_KEY,
+            retry_tool="run_reaction_loads",
+            retry_reason=(
+                "run_reaction_loads creates the reaction_loads_table storage key "
+                "needed by run_footing_design."
+            ),
+        )
+    except json.JSONDecodeError as exc:
+        return validation_error_response(
+            tool="run_footing_design",
+            message=f"Storage key '{REACTION_LOADS_STORAGE_KEY}' does not contain valid JSON.",
+            error=exc,
+            retry_tool="run_reaction_loads",
+            retry_reason="Regenerate the reaction-load table in storage.",
+        )
+    except (ValueError, ValidationError, IndexError) as exc:
+        return validation_error_response(
+            tool="run_footing_design",
+            message=(
+                f"Storage key '{REACTION_LOADS_STORAGE_KEY}' does not contain "
+                "a valid reaction-load table."
+            ),
+            error=exc,
+            retry_tool="run_reaction_loads",
+            retry_reason="Regenerate the reaction-load table in the expected TableView format.",
+        )
 
     compute_params = FootingComputeParams(
         inputs=FootingInputs(
@@ -193,25 +237,37 @@ async def run_footing_design_func(context: Any, args: str) -> str:
         )
     )
 
-    client = ViktorSdkComputeClient()
-    result = client.compute_method(
-        workspace_id=FOOTING_WORKSPACE_ID,
-        entity_id=FOOTING_ENTITY_ID,
-        method_name=FOOTING_METHOD_NAME,
-        params=compute_params.model_dump(),
-    )
-    data = select_result_key(result, FOOTING_RESULT_KEY)
-    write_json_to_storage(FOOTING_STORAGE_KEY, data)
+    try:
+        client = ViktorSdkComputeClient()
+        result = client.compute_method(
+            workspace_id=FOOTING_WORKSPACE_ID,
+            entity_id=FOOTING_ENTITY_ID,
+            method_name=FOOTING_METHOD_NAME,
+            params=compute_params.model_dump(),
+        )
+        data = select_result_key(result, FOOTING_RESULT_KEY)
+        write_json_to_storage(FOOTING_STORAGE_KEY, data)
+    except (KeyError, ValueError) as exc:
+        return validation_error_response(
+            tool="run_footing_design",
+            message="The footing app returned an unexpected result shape.",
+            error=exc,
+            retry_tool="run_footing_design",
+            retry_reason="Retry after regenerating reaction_loads_table if needed.",
+        )
+    except Exception as exc:
+        return execution_error_response(
+            tool="run_footing_design",
+            message="Footing-design SDK compute or storage write failed.",
+            error=exc,
+        )
 
-    return json.dumps(
-        {
-            "status": "completed",
-            "method_name": FOOTING_METHOD_NAME,
-            "result_key": FOOTING_RESULT_KEY,
-            "input_storage_key": REACTION_LOADS_STORAGE_KEY,
-            "storage_key": FOOTING_STORAGE_KEY,
-            "reaction_count": len(reactions),
-            "summary": summarize_footing_data(data),
-        },
-        indent=2,
+    return tool_response(
+        "completed",
+        method_name=FOOTING_METHOD_NAME,
+        result_key=FOOTING_RESULT_KEY,
+        input_storage_key=REACTION_LOADS_STORAGE_KEY,
+        storage_key=FOOTING_STORAGE_KEY,
+        reaction_count=len(reactions),
+        summary=summarize_footing_data(data),
     )

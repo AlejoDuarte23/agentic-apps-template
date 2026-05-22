@@ -2,8 +2,13 @@ import json
 from typing import Any
 
 import viktor as vkt
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
+from agent.tools.viktor_tools.responses import (
+    execution_error_response,
+    tool_response,
+    validation_error_response,
+)
 from agent.tools.viktor_tools.sdk_compute import ViktorSdkComputeClient, select_result_key
 
 
@@ -54,26 +59,51 @@ def summarize_table(table: dict[str, Any]) -> dict[str, Any]:
 
 
 async def run_reaction_loads_func(context: Any, args: str) -> str:
-    payload = ReactionLoadsParams.model_validate_json(args or "{}")
+    try:
+        payload = ReactionLoadsParams.model_validate_json(args or "{}")
+    except ValidationError as exc:
+        return validation_error_response(
+            tool="run_reaction_loads",
+            message="Invalid reaction-load tool arguments.",
+            error=exc,
+            retry_tool="run_reaction_loads",
+            retry_reason=(
+                "Retry with inputs.distributed_load as a number and "
+                "inputs.number_of_reactions as an integer."
+            ),
+        )
+
     params = payload.model_dump()
 
-    client = ViktorSdkComputeClient()
-    result = client.compute_method(
-        workspace_id=REACTION_LOADS_WORKSPACE_ID,
-        entity_id=REACTION_LOADS_ENTITY_ID,
-        method_name=REACTION_LOADS_METHOD_NAME,
-        params=params,
-    )
-    table = select_result_key(result, REACTION_LOADS_RESULT_KEY)
-    write_json_to_storage(REACTION_LOADS_STORAGE_KEY, table)
+    try:
+        client = ViktorSdkComputeClient()
+        result = client.compute_method(
+            workspace_id=REACTION_LOADS_WORKSPACE_ID,
+            entity_id=REACTION_LOADS_ENTITY_ID,
+            method_name=REACTION_LOADS_METHOD_NAME,
+            params=params,
+        )
+        table = select_result_key(result, REACTION_LOADS_RESULT_KEY)
+        write_json_to_storage(REACTION_LOADS_STORAGE_KEY, table)
+    except (KeyError, ValueError) as exc:
+        return validation_error_response(
+            tool="run_reaction_loads",
+            message="The reaction-load app returned an unexpected result shape.",
+            error=exc,
+            retry_tool="run_reaction_loads",
+            retry_reason="Retry with valid reaction-load inputs.",
+        )
+    except Exception as exc:
+        return execution_error_response(
+            tool="run_reaction_loads",
+            message="Reaction-load SDK compute or storage write failed.",
+            error=exc,
+        )
 
-    return json.dumps(
-        {
-            "status": "completed",
-            "method_name": REACTION_LOADS_METHOD_NAME,
-            "result_key": REACTION_LOADS_RESULT_KEY,
-            "storage_key": REACTION_LOADS_STORAGE_KEY,
-            "summary": summarize_table(table),
-        },
-        indent=2,
+    return tool_response(
+        "completed",
+        method_name=REACTION_LOADS_METHOD_NAME,
+        result_key=REACTION_LOADS_RESULT_KEY,
+        storage_key=REACTION_LOADS_STORAGE_KEY,
+        summary=summarize_table(table),
     )

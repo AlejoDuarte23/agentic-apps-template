@@ -7,7 +7,14 @@ from pathlib import Path
 from typing import Any
 
 import viktor as vkt
-from agents import Agent, ItemHelpers, Runner, set_tracing_disabled, set_default_openai_client
+from agents import (
+    Agent,
+    ItemHelpers,
+    MaxTurnsExceeded,
+    Runner,
+    set_default_openai_client,
+    set_tracing_disabled,
+)
 from openai import AsyncOpenAI
 from openai.types.responses import ResponseTextDeltaEvent
 
@@ -16,6 +23,7 @@ from agent.tools import TOOL_DISPLAY_NAMES, get_tools
 
 
 PROMPT_PATH = Path(__file__).resolve().parent / "system_prompt.xml"
+MAX_AGENT_TURNS = 20
 
 event_loop: asyncio.AbstractEventLoop | None = None
 event_loop_thread: threading.Thread | None = None
@@ -116,7 +124,7 @@ def workflow_agent_sync_stream(
                 build_agent(),
                 input=chat_history,
                 context=context or AgentContext(),
-                max_turns=80,
+                max_turns=MAX_AGENT_TURNS,
             )
 
             async for event in result.stream_events():
@@ -168,6 +176,11 @@ def workflow_agent_sync_stream(
                     output_queue.put(f"\n> Done **{display_name}**\n\n")
                     continue
 
+        except MaxTurnsExceeded:
+            output_queue.put(
+                "\n\nThe agent exceeded the allowed number of turns. "
+                "Try a smaller request or split the workflow into fewer tool calls.\n"
+            )
         except Exception as exc:
             output_queue.put(f"\n\n{type(exc).__name__}: {exc}\n")
         finally:

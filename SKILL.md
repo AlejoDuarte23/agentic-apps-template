@@ -49,6 +49,10 @@ The output is a typed Agents SDK tool with Pydantic defaults and a deterministic
    - Python compile passes.
    - Pydantic schema has defaults and no open-ended tool input dict.
    - A live SDK compute smoke test works with `TOKEN_VK_APP` and `VIKTOR_ENVIRONMENT` when needed.
+10. Return recoverable failures as tool output instead of exceptions.
+   - Use `status="validation_error"` when arguments or stored data are malformed.
+   - Use `status="needs_prerequisite"` when a required storage key is missing.
+   - Include `retry_action.tool` when the agent can call another tool to recover.
 
 ## Pydantic Pattern
 
